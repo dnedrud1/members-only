@@ -1,6 +1,6 @@
 class User < ActiveRecord::Base
-    
-    before_create :save_token
+    attr_accessor :unencrypted_token
+    #before_create :save_token
     has_secure_password
     
   def User.new_token
@@ -8,14 +8,22 @@ class User < ActiveRecord::Base
   end
   
   def User.encrypt(string)
-    Digest::SHA1.hexdigest(string)
+    cost = ActiveModel::SecurePassword.min_cost ? BCrypt::Engine::MIN_COST :
+                                                  BCrypt::Engine.cost
+    BCrypt::Password.create(string, cost: cost)
   end
   
   def save_token
-    self.remember_token = User.encrypt(User.new_token)
+    self.unencrypted_token = User.new_token
+    update_attribute(:remember_token, User.encrypt(unencrypted_token))
   end
   
   def forget
     update_attribute(:remember_token, nil)
+  end
+  
+  def authenticated?(item)
+    return false if remember_token.nil?
+    BCrypt::Password.new(remember_token).is_password?(item)
   end
 end
